@@ -19,6 +19,9 @@ class DealDetailsController extends GetxController {
 
   late final DealModel deal;
 
+  // One worker per open deal details screen; it must not outlive this controller.
+  Worker? _cartWorker;
+
   final _quantityLeft = RxnInt();
   int? get quantityLeft => _quantityLeft.value;
 
@@ -33,13 +36,23 @@ class DealDetailsController extends GetxController {
     });
     // Whenever the cart changes, re-check this deal's remaining stock so the
     // details screen never shows stale availability.
-    ever(cartService.itemCount, (_) => _recheckAvailability());
+    _cartWorker = ever(
+      cartService.itemCount,
+      (_) => _recheckAvailability(),
+    );
   }
 
   Future<void> _recheckAvailability() async {
     LogService.log('re-checking availability for deal ${deal.id}');
     final fresh = await dealRepo.fetchById(deal.id);
     _quantityLeft.value = fresh.quantityLeft;
+  }
+
+  @override
+  void onClose() {
+    // Stop observing cart changes after the details route is removed.
+    _cartWorker?.dispose();
+    super.onClose();
   }
 
   void addToCart() {

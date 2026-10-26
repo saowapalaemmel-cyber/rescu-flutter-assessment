@@ -15,12 +15,23 @@ class PickupCountdown extends StatefulWidget {
 }
 
 class _PickupCountdownState extends State<PickupCountdown> {
+  // Keep the periodic timer so it can be cancelled with this State.
+  late final Timer _timer;
+
   @override
   void initState() {
     super.initState();
-    Timer.periodic(const Duration(seconds: 1), (_) {
+    // The countdown is tied to this widget's lifetime, not the app lifetime.
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
       setState(() {});
     });
+  }
+
+  @override
+  void dispose() {
+    // Prevent setState() after the State has been disposed when leaving the page.
+    _timer.cancel();
+    super.dispose();
   }
 
   @override

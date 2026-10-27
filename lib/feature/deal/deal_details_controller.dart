@@ -2,6 +2,7 @@ import 'package:get/get.dart';
 
 import '../../model/deal_model.dart';
 import '../../repository/deal_repo.dart';
+import '../../service/api_exception.dart';
 import '../../service/analytics_service.dart';
 import '../../service/cart_service.dart';
 import '../../util/log_service.dart';
@@ -17,7 +18,11 @@ class DealDetailsController extends GetxController {
     required this.analytics,
   });
 
-  late final DealModel deal;
+  final _deal = Rxn<DealModel>();
+  DealModel? get deal => _deal.value;
+
+  final isLoading = true.obs;
+  final loadError = RxnString();
 
   // One worker per open deal details screen; it must not outlive this controller.
   Worker? _cartWorker;
@@ -28,23 +33,60 @@ class DealDetailsController extends GetxController {
   @override
   void onInit() {
     super.onInit();
-    deal = Get.arguments as DealModel;
-    _quantityLeft.value = deal.quantityLeft;
+    final arguments = Get.arguments;
+    if (arguments is DealModel) {
+      _setDeal(arguments);
+      isLoading.value = false;
+      return;
+    }
+
+    // Deep links provide the deal ID in the URL, not a DealModel argument.
+    final id = int.tryParse(Get.parameters['id'] ?? '');
+    if (id == null || id <= 0) {
+      loadError.value = 'This deal link is invalid.';
+      isLoading.value = false;
+      return;
+    }
+    _loadDeal(id);
+  }
+
+  Future<void> _loadDeal(int id) async {
+    // The screen reads deal fields, so publish loading/error state until fetch completes.
+    try {
+      _setDeal(await dealRepo.fetchById(id));
+    } on ApiException catch (e) {
+      LogService.error('failed to load deal $id', e);
+      loadError.value = e.statusCode == 404
+          ? 'This deal could not be found.'
+          : 'Unable to load this deal.';
+    } on FormatException catch (e) {
+      LogService.error('invalid deal response for $id', e);
+      loadError.value = 'The deal information could not be read.';
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
+  void _setDeal(DealModel value) {
+    _deal.value = value;
+    _quantityLeft.value = value.quantityLeft;
     analytics.logEvent('deal_details_view', {
-      'deal_id': deal.id,
+      'deal_id': value.id,
       'source': Get.parameters['source'] ?? 'unknown',
     });
     // Whenever the cart changes, re-check this deal's remaining stock so the
     // details screen never shows stale availability.
-    _cartWorker = ever(
+    _cartWorker ??= ever(
       cartService.itemCount,
       (_) => _recheckAvailability(),
     );
   }
 
   Future<void> _recheckAvailability() async {
-    LogService.log('re-checking availability for deal ${deal.id}');
-    final fresh = await dealRepo.fetchById(deal.id);
+    final currentDeal = deal;
+    if (currentDeal == null) return;
+    LogService.log('re-checking availability for deal ${currentDeal.id}');
+    final fresh = await dealRepo.fetchById(currentDeal.id);
     _quantityLeft.value = fresh.quantityLeft;
   }
 
@@ -56,10 +98,12 @@ class DealDetailsController extends GetxController {
   }
 
   void addToCart() {
-    cartService.add(deal);
+    final currentDeal = deal;
+    if (currentDeal == null) return;
+    cartService.add(currentDeal);
     Get.snackbar(
       'Added to bag',
-      '${deal.name} — pick up ${deal.pickupWindow.label}',
+      '${currentDeal.name} — pick up ${currentDeal.pickupWindow.label}',
       snackPosition: SnackPosition.BOTTOM,
       duration: const Duration(seconds: 2),
     );

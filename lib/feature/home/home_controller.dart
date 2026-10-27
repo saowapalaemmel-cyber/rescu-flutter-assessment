@@ -22,6 +22,7 @@ class HomeController extends GetxController {
 
   int _page = 1;
   int _totalPages = 1;
+  int _feedGeneration = 0;
   bool _isFetchingMore = false;
 
   bool get hasMore => _page < _totalPages;
@@ -56,11 +57,25 @@ class HomeController extends GetxController {
   }
 
   Future<void> refreshDeals() async {
-    _page = 1;
-    final res = await dealRepo.fetchDeals(page: 1);
-    _totalPages = res.totalPages;
-    deals.assignAll(res.items);
-    refreshController.refreshCompleted();
+    // Refresh always wins: invalidate every pagination response still in flight.
+    final generation = ++_feedGeneration;
+
+    try {
+      final res = await dealRepo.fetchDeals(page: 1);
+      if (generation != _feedGeneration) return;
+
+      // Invalidate load-more requests that started while this refresh was active.
+      _feedGeneration++;
+      _page = 1;
+      _totalPages = res.totalPages;
+      deals.assignAll(res.items);
+      refreshController.refreshCompleted();
+    } catch (e) {
+      LogService.error('refresh failed', e);
+      if (generation == _feedGeneration) {
+        refreshController.refreshFailed();
+      }
+    }
   }
 
   Future<void> loadMore() async {
@@ -69,18 +84,25 @@ class HomeController extends GetxController {
       refreshController.loadNoData();
       return;
     }
+
     _isFetchingMore = true;
-    _page++;
+    final generation = _feedGeneration;
+    final requestedPage = _page + 1;
+
     try {
-      final res = await dealRepo.fetchDeals(page: _page);
+      final res = await dealRepo.fetchDeals(page: requestedPage);
+      if (generation != _feedGeneration) return;
+
+      _page = requestedPage;
       _totalPages = res.totalPages;
       deals.addAll(res.items);
     } catch (e) {
       LogService.error('loadMore failed', e);
-      _page--;
+    } finally {
+      // Close the pagination indicator even when a stale response is ignored.
+      _isFetchingMore = false;
+      refreshController.loadComplete();
     }
-    _isFetchingMore = false;
-    refreshController.loadComplete();
   }
 
   void scrollToTop() {

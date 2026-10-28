@@ -100,7 +100,8 @@ class DealDetailsController extends GetxController {
   void addToCart() {
     final currentDeal = deal;
     if (currentDeal == null) return;
-    cartService.add(currentDeal);
+    // CartService rechecks the deadline to guard taps racing the UI update.
+    if (!cartService.add(currentDeal)) return;
     Get.snackbar(
       'Added to bag',
       '${currentDeal.name} — pick up ${currentDeal.pickupWindow.label}',

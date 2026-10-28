@@ -14,73 +14,89 @@ class CartScreen extends GetView<CartController> {
     return Scaffold(
       appBar: AppBar(title: const Text('My bag')),
       body: Obx(() {
-        if (cart.items.isEmpty) {
-          return const Center(child: Text('Your bag is empty'));
-        }
-        return ListView.builder(
-          padding: const EdgeInsets.symmetric(vertical: 8),
-          itemCount: cart.items.length,
-          itemBuilder: (context, index) {
-            final item = cart.items[index];
-            return Card(
-              margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-              color: Colors.white,
-              elevation: 0.5,
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Row(
-                  children: [
-                    TheNetworkImage(
-                      url: item.deal.imageUrl,
-                      width: 64,
-                      height: 64,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(item.deal.name,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                  fontSize: 14.5,
-                                  fontWeight: FontWeight.w600)),
-                          Text(item.deal.storeName,
-                              style: TextStyle(
-                                  fontSize: 12.5,
-                                  color: Colors.grey.shade600)),
-                          Text('฿${item.deal.price.toStringAsFixed(0)} each',
-                              style: const TextStyle(
-                                  fontSize: 13,
-                                  color: AppConfig.primaryGreen,
-                                  fontWeight: FontWeight.w600)),
-                        ],
-                      ),
-                    ),
-                    Row(
-                      children: [
-                        IconButton(
-                          visualDensity: VisualDensity.compact,
-                          icon: const Icon(Icons.remove_circle_outline),
-                          onPressed: () => cart.decrement(item.deal.id),
-                        ),
-                        Text('${item.quantity}',
-                            style: const TextStyle(
-                                fontWeight: FontWeight.bold)),
-                        IconButton(
-                          visualDensity: VisualDensity.compact,
-                          icon: const Icon(Icons.add_circle_outline),
-                          onPressed: () => cart.add(item.deal),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
+        return Column(
+          children: [
+            for (var index = 0; index < cart.expiredDealNotices.length; index++)
+              _ExpiredDealNotice(
+                message: cart.expiredDealNotices[index],
+                onDismiss: () => cart.dismissExpiredDealNotice(index),
               ),
-            );
-          },
+            Expanded(
+              child: cart.items.isEmpty
+                  ? const Center(child: Text('Your bag is empty'))
+                  : ListView.builder(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      itemCount: cart.items.length,
+                      itemBuilder: (context, index) {
+                        final item = cart.items[index];
+                        return Card(
+                          margin: const EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 6),
+                          color: Colors.white,
+                          elevation: 0.5,
+                          child: Padding(
+                            padding: const EdgeInsets.all(12),
+                            child: Row(
+                              children: [
+                                TheNetworkImage(
+                                  url: item.deal.imageUrl,
+                                  width: 64,
+                                  height: 64,
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(item.deal.name,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: const TextStyle(
+                                              fontSize: 14.5,
+                                              fontWeight: FontWeight.w600)),
+                                      Text(item.deal.storeName,
+                                          style: TextStyle(
+                                              fontSize: 12.5,
+                                              color: Colors.grey.shade600)),
+                                      Text(
+                                          '฿${item.deal.price.toStringAsFixed(0)} each',
+                                          style: const TextStyle(
+                                              fontSize: 13,
+                                              color: AppConfig.primaryGreen,
+                                              fontWeight: FontWeight.w600)),
+                                    ],
+                                  ),
+                                ),
+                                Row(
+                                  children: [
+                                    IconButton(
+                                      visualDensity: VisualDensity.compact,
+                                      icon: const Icon(
+                                          Icons.remove_circle_outline),
+                                      onPressed: () =>
+                                          cart.decrement(item.deal.id),
+                                    ),
+                                    Text('${item.quantity}',
+                                        style: const TextStyle(
+                                            fontWeight: FontWeight.bold)),
+                                    IconButton(
+                                      visualDensity: VisualDensity.compact,
+                                      icon:
+                                          const Icon(Icons.add_circle_outline),
+                                      onPressed: () => cart.add(item.deal),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+            ),
+          ],
         );
       }),
       bottomNavigationBar: Obx(() {
@@ -118,6 +134,40 @@ class CartScreen extends GetView<CartController> {
           ),
         );
       }),
+    );
+  }
+}
+
+class _ExpiredDealNotice extends StatelessWidget {
+  final String message;
+  final VoidCallback onDismiss;
+
+  const _ExpiredDealNotice({required this.message, required this.onDismiss});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.orange.shade50,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        child: Row(
+          children: [
+            Icon(Icons.info_outline, color: Colors.orange.shade900),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                message,
+                style: TextStyle(color: Colors.orange.shade900),
+              ),
+            ),
+            IconButton(
+              tooltip: 'Dismiss notice',
+              onPressed: onDismiss,
+              icon: const Icon(Icons.close),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
